@@ -1,3 +1,5 @@
+import { UserRole } from './user.model';
+
 export enum TicketSource {
     Manual = 'MANUAL'
 }
@@ -74,6 +76,21 @@ export function diffTicket(before: Ticket, data: UpdateTicketInput): TicketChang
     return changes;
 }
 
+// Atendente só mexe em ticket seu ou sem responsável (fila), e só pode atribuir a si mesmo.
+// Gestor e admin alteram qualquer ticket da empresa.
+export function canModifyTicket(
+    actor: { id: string; role: UserRole },
+    ticket: Pick<Ticket, 'assignedTo'>,
+    data: Pick<UpdateTicketInput, 'assignedTo'>,
+): boolean {
+    if (actor.role !== 'atendente') return true;
+
+    const ownsOrInQueue = ticket.assignedTo === null || ticket.assignedTo === actor.id;
+    const assignsToOther = !!data.assignedTo && data.assignedTo !== actor.id;
+
+    return ownsOrInQueue && !assignsToOther;
+}
+
 export interface CreateTicketInput {
     companyId: string;
     categoryId: string;
@@ -95,7 +112,7 @@ export interface UpdateTicketInput {
     status?: TicketStatus;
     priority?: TicketPriority
     source?: TicketSource;
-    assignedTo?: string;
+    assignedTo?: string | null;
     contactPhone?: string;
     contactName?: string;
     contactEmail?: string;

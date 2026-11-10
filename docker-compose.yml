@@ -30,5 +30,20 @@ services:
       timeout: 3s
       retries: 10
 
+  # Banco descartável dos testes de integração: docker compose --profile test up -d db_test
+  db_test:
+    image: postgres:16-alpine
+    profiles: ["test"]
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: helpdesk_test
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    volumes:
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+
 volumes:
   pgdata:

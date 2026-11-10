@@ -1,7 +1,6 @@
 import { Request, Response } from "express";
 import { ticketService } from "../service/ticket.service";
-import { createTicketSchema } from "../schema/ticket.schema";
-import { AuthUser } from "../middleware/auth.middleware";
+import { createTicketSchema, updateTicketSchema, ticketIdParamsSchema, listTicketsQuerySchema } from "../schema/ticket.schema";
 import { AppError } from "../errors/app-errors";
 
 
@@ -26,33 +25,27 @@ export const ticketController = {
     },
 
     async findById(req: Request, res: Response) {
-        const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+        const {id} = ticketIdParamsSchema.parse(req.params);
         res.status(200).json(await ticketService.findById(id, req.user!.companyId));
     },
 
     async findAll(req: Request, res: Response) {
-        const limiDefault = 50;
-        const offsetDefault = 1;
-
-        const limit = req.body || limiDefault;
-        const offset = req.body || offsetDefault;
-
+        const {limit, offset} = listTicketsQuerySchema.parse(req.query);
 
         res.status(200).json(await ticketService.findAll(req.user!.companyId, limit, offset));
     },
 
     async update(req: Request, res: Response) {
-        const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+        const {id} = ticketIdParamsSchema.parse(req.params);
+        const data = updateTicketSchema.parse(req.body);
 
-        const actorId = req.user!.id;
-
-        const data = req.body;
-        res.status(201).json(await ticketService.updateTicket(id, req.user!.companyId, data, actorId));
+        res.status(200).json(await ticketService.updateTicket(id, req.user!.companyId, data, req.user!));
     },
 
     async delete(req: Request, res: Response) {
-        const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+        const {id} = ticketIdParamsSchema.parse(req.params);
 
-        res.status(204).json(await ticketService.deleteTicket(id, req.user!.companyId));
+        await ticketService.deleteTicket(id, req.user!.companyId, req.user!.id);
+        res.status(204).send();
     }
 }

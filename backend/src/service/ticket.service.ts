@@ -1,10 +1,13 @@
 import { ticketRepository } from "../repository/ticket.repository";
 import { CreateTicketBody } from "../schema/ticket.schema";
 import { userRepository } from "../repository/user.repository";
-import {  PublicTicket, toPublicTicket, UpdateTicketInput, TicketStatus, TicketPriority, TicketSource, diffTicket } from "../model/ticket.model";
+import {  PublicTicket, toPublicTicket, UpdateTicketInput, canModifyTicket, TicketStatus, TicketPriority, TicketSource, diffTicket } from "../model/ticket.model";
 import { AppError } from "../errors/app-errors";
 import { withTransaction } from "../config/db.config";
 import { ticketEventsRepository } from "../repository/ticket.events.repository";
+import { AuthUser } from "../middleware/auth.middleware";
+import { auditRepository } from "../repository/audit.repository";
+import { categoriesRepository } from "../repository/categories.repository";
 
 
 
@@ -23,35 +26,30 @@ export interface CreateTicket  {
     contactEmail: string;
 }
 
+// Garante que o responsável existe, está ativo e pertence à mesma empresa do ticket
+async function assertValidAssignee(assigneeId: string, companyId: string) {
+    const assignee = await userRepository.findById(assigneeId, companyId);
+
+    if(!assignee || !assignee.active) {
+        throw new AppError('Selecione um usuário válido', 400);
+    }
+}
+
 export const ticketService = {
-    async  createTicket(input: CreateTicket): Promise<PublicTicket>{
-        try{
-
-            if(input.assignedTo){
-
-                const assignee = await userRepository.findById(input.assignedTo, input.companyId);
-
-                if(!assignee) {
-                    throw new AppError('Selecione um usuário válido', 400);
-                }
-                
-            }
-            const createdTicket = await ticketRepository.createTicket({
-                priority: input.priority,
-                companyId: input.companyId,
-                categoryId: input.categoryId,
-                createdBy: input.createdBy,
-                source: input.source,
-                assignedTo: input.assignedTo,
-                subject: input.subject,
-                description: input.description,
-                status: input.status,
-                contactPhone: input.contactPhone,
-            });
-            return toPublicTicket(createdTicket);
-        } catch (error) {
-            throw new AppError('Nao foi possivel criar o ticket', 400)
+    async createTicket(input: CreateTicket): Promise<PublicTicket>{
+        if(input.assignedTo) {
+            await assertValidAssignee(input.assignedTo, input.companyId);
         }
+
+        // sem isso, dava pra apontar o ticket para a categoria de outra empresa
+        const category = await categoriesRepository.findById(input.categoryId, input.companyId);
+        if(!category) {
+            throw new AppError('Categoria inválida', 400);
+        }
+
+        const createdTicket = await ticketRepository.createTicket(input);
+
+        return toPublicTicket(createdTicket);
     },
 
     async findById(id: string, companyId: string): Promise<PublicTicket>{
@@ -64,47 +62,68 @@ export const ticketService = {
         return toPublicTicket(findTicket);
     },
 
-
     async findAll(companyId: string, limit: number, offset: number): Promise<PublicTicket[]> {
-        const findAllTicket = await ticketRepository.findAll(companyId, limit, offset);
+        const tickets = await ticketRepository.findAll(companyId, limit, offset);
 
-        if(!findAllTicket) {
-            throw new AppError('Não foi possivel listar os tickets', 400);
-        }
-
-        return findAllTicket.map((ticket) => toPublicTicket(ticket));
+        return tickets.map((ticket) => toPublicTicket(ticket));
     },
 
-    async updateTicket(id: string, companyId: string, data: UpdateTicketInput, actorId: string): Promise<PublicTicket> {
-        
+    async updateTicket(id: string, companyId: string, data: UpdateTicketInput, actor: AuthUser): Promise<PublicTicket> {
+        const actorId = actor.id;
+        if(data.assignedTo) {
+            await assertValidAssignee(data.assignedTo, companyId);
+        }
+
         return withTransaction(async (client) => {
             const before = await ticketRepository.findById(id, companyId, client);
 
             if(!before) {
                 throw new AppError('Ticket não encontrado', 404);
             }
-                const updated = await ticketRepository.updateTicket(id, companyId, data, client);
 
-                if(!updated) {
-                    throw new AppError('Não foi possivel atualziar o ticket', 400);
-                }
+            if(!canModifyTicket(actor, before, data)) {
+                throw new AppError('Apenas gestor ou admin pode alterar tickets de outro atendente', 403);
+            }
 
-                const changes = diffTicket(before, data); //função pura que compara campo a campo
+            const updated = await ticketRepository.updateTicket(id, companyId, data, client);
 
+            if(!updated) {
+                throw new AppError('Não foi possivel atualizar o ticket', 400);
+            }
 
-                for(const change of changes) {
-                    await ticketEventsRepository.create({
-                        ticketId: id,
-                        actorId, 
-                        eventType: change.field, //ex: 'status_change
-                        oldValue: String(change.oldValue),
-                        newValue: String(change.newValue),
-                    }, client);
-                }
+            for(const change of diffTicket(before, data)) {
+                await ticketEventsRepository.create({
+                    ticketId: id,
+                    actorId,
+                    eventType: change.eventType,
+                    oldValue: change.oldValue,
+                    newValue: change.newValue,
+                }, client);
+            }
+
             return toPublicTicket(updated);
         });
     },
-    async deleteTicket(id: string, companyId: string): Promise<void> {
-        await ticketRepository.deleteTicket(id, companyId);
+
+    async deleteTicket(id: string, companyId: string, actorId: string): Promise<void> {
+        // log e delete na mesma transação: não existe exclusão sem registro, nem registro sem exclusão
+        await withTransaction(async (client) => {
+            const ticket = await ticketRepository.findById(id, companyId, client);
+
+            if(!ticket) {
+                throw new AppError('Ticket não encontrado', 404);
+            }
+
+            await auditRepository.create({
+                companyId,
+                actorId,
+                action: 'ticket_deleted',
+                entityType: 'ticket',
+                entityId: id,
+                details: ticket, // snapshot, já que o ticket e seus eventos deixam de existir
+            }, client);
+
+            await ticketRepository.deleteTicket(id, companyId, client);
+        });
     }
 }

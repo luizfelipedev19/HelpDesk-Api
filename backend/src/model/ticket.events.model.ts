@@ -1,18 +1,18 @@
 export interface TicketEvents  {
     id: string,
     ticketId: string,
-    actorId: string,
+    actorId: string | null,
     eventType: string,
-    oldValue: string, 
-    newValue: string
+    oldValue: string | null,
+    newValue: string | null
 }
 
 export interface CreateEventInput {
     ticketId: string,
-    actorId: string,
-    eventType: string, 
-    oldValue: string,
-    newValue: string
+    actorId: string | null,
+    eventType: string,
+    oldValue: string | null,
+    newValue: string | null
 }
 
 export type PublicTicketEvents = TicketEvents;
@@ -21,10 +21,10 @@ export type PublicTicketEvents = TicketEvents;
 export interface TicketEventsRow {
     id_event: string, 
     ticket_id: string,
-    actor_id: string,
+    actor_id: string | null,
     event_type: string,
-    old_value: string,
-    new_value: string
+    old_value: string | null,
+    new_value: string | null
 }
 
 export function rowToTicketEvents(row: TicketEventsRow): TicketEvents {

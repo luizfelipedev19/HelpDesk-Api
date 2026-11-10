@@ -32,7 +32,7 @@ export const userService = {
             return toPublicUser(user);
         } catch(error){
             //pegando o erro de conflito se o email já existir
-            if((error as {code?: string}).code === '235005'){
+            if((error as {code?: string}).code === '23505'){
                 throw new AppError('E-mail já cadastrado', 409);
             }
             throw error;

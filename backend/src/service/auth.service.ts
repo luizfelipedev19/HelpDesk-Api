@@ -2,6 +2,7 @@ import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
 import { userRepository } from '../repository/user.repository';
 import { UserRole } from '../model/user.model';
+import { companyRepository } from '../repository/company.repository';
 import { AppError } from '../errors/app-errors';
 
 export interface TokenPayload{
@@ -29,7 +30,6 @@ export const authService = {
 
         //busca o usuário
         const user = await userRepository.findByEmail(email);
-        console.log('User found:', user); // Debugging line
 
         //Usuário inexistente
 
@@ -45,6 +45,9 @@ export const authService = {
         if(!passwordOk || !user.active || !allowdRoles.includes(user.role)) {
             throw invalidCredentials();
         }
+
+        const company = await companyRepository.findById(user.companyId);
+        if(!company?.active) throw invalidCredentials();
 
         const payload: TokenPayload = {sub: user.id, role: user.role, companyId: user.companyId};
         const token = jwt.sign(payload, secret, {algorithm: 'HS256', expiresIn: '8h'});

@@ -20,6 +20,11 @@ export function errorMiddleware(
         });
     }
 
+    // express.json() lança este erro quando o corpo não é um JSON válido: é culpa do cliente, não 500
+    if((err as {type?: string})?.type === 'entity.parse.failed'){
+        return res.status(400).json({message: 'JSON inválido'});
+    }
+
     if(err instanceof AppError){
         return res.status(err.statusCode).json({message: err.message})
     }

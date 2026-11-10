@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import {z} from 'zod';
 import { AppError } from "../errors/app-errors";
 import { UserRole } from "../model/user.model";
+import { userRepository } from "../repository/user.repository";
 
 export interface AuthUser {
     id: string;
@@ -27,7 +28,7 @@ const tokenPayloadSchema = z.object ({
     companyId: z.string().uuid(),
 });
 
-export function authenticate(req: Request, _res: Response, next: NextFunction) {
+export async function authenticate(req: Request, _res: Response, next: NextFunction) {
     const secret = process.env.JWT_SECRET;
 
     if(!secret){
@@ -41,15 +42,22 @@ export function authenticate(req: Request, _res: Response, next: NextFunction) {
     const token = header.slice('Bearer '.length).trim();
 
 
+    let payload: z.infer<typeof tokenPayloadSchema>;
     try {
-        const decoded = jwt.verify(token, secret, {algorithms: ['HS256']});
-
-        const payload = tokenPayloadSchema.parse(decoded);
-        req.user = {id: payload.sub, role: payload.role as UserRole, companyId: payload.companyId};
-        next();
+        payload = tokenPayloadSchema.parse(jwt.verify(token, secret, {algorithms: ['HS256']}));
     } catch {
         throw new AppError('Não autenticado', 401);
     }
+
+    // O token sozinho não revoga nada: confere no banco para que desativar usuário/empresa
+    // ou mudar o papel valha na hora, não só no próximo login.
+    const state = await userRepository.findAuthState(payload.sub, payload.companyId);
+    if(!state?.active) {
+        throw new AppError('Não autenticado', 401);
+    }
+
+    req.user = {id: payload.sub, role: state.role, companyId: payload.companyId};
+    next();
 }
 
 export function authorize(...roles: UserRole[]){

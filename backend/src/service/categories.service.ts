@@ -51,16 +51,28 @@ export const categoriesService = {
     },
 
     async updateCategories(id: string, companyId: string, data: UpdateCategoryInput): Promise<PublicCategories>{
-        const updateCategories = await categoriesRepository.updateCategories(id, companyId, data)
+        try {
+            const updateCategories = await categoriesRepository.updateCategories(id, companyId, data);
 
-        if(!updateCategories) {
-            throw new AppError('Não foi possivel atualizar a categoria', 422);
+            if(!updateCategories) {
+                throw new AppError('Categoria não encontrada', 404);
+            }
+
+            return toPublicCategories(updateCategories);
+        } catch (error) {
+            if((error as {code?: string}).code === '23505'){
+                throw new AppError('Categoria já cadastrada', 409);
+            }
+            throw error;
         }
 
-        return toPublicCategories(updateCategories);
     },
 
     async deleteCategories(id: string, companyId: string): Promise<void>{
-         await categoriesRepository.deleteCategories(id, companyId);
+        const deleted = await categoriesRepository.deleteCategories(id, companyId);
+
+        if(!deleted) {
+            throw new AppError('Categoria não encontrada', 404);
+        }
     }
 }

@@ -47,6 +47,20 @@ export const companyService = {
         }
     },
 
+    async updateName(id: string, name: string) {
+        const company = await companyRepository.updateName(id, name);
+
+        if(!company) {
+            throw new AppError('Empresa não localizada', 404);
+        }
+
+        return company;
+    },
+
+    async deactivate(id: string) {
+        await companyRepository.deactivate(id);
+    },
+
     async findById(id: string) {
         const company = await companyRepository.findById(id);
 

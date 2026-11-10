@@ -9,6 +9,7 @@ import { companiesRouter } from './routes/company.routes';
 import { categoriesRouter } from './routes/categories.routes';
 import { authenticate } from './middleware/auth.middleware';
 import { ticketRouter } from './routes/ticket.routes';
+import { auditRouter } from './routes/audit.routes';
 
 export const app = express();
 // Atrás de proxy/ingress (Docker, Kubernetes, nginx), o req.ip seria o do proxy
@@ -95,7 +96,8 @@ app.use('/companies', companyLimiter, companiesRouter);
 // só depois o `apiLimiter` (que depende de req.user) e então o router de fato.
 app.use('/users', authenticate, apiLimiter, usersRouter);
 app.use('/categories', authenticate, apiLimiter, categoriesRouter);
-app.use('/tickets', authenticate, apiLimiter, ticketRouter)
+app.use('/tickets', authenticate, apiLimiter, ticketRouter);
+app.use('/audit', authenticate, apiLimiter, auditRouter);
 
 
 // Middleware de erro: só funciona registrado por ÚLTIMO, depois de todas as

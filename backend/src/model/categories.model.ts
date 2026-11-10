@@ -13,7 +13,7 @@ export interface CreateCategoriesInput {
 }
 
 export interface CategoriesRow {
-    id_categores: string;
+    id_categories: string;
     company_id: string,
     name: string;
     color: string;
@@ -25,7 +25,7 @@ export interface UpdateCategoryInput {
 
 export function rowToCategories(row: CategoriesRow): Categories {
     return {
-        id: row.id_categores,
+        id: row.id_categories,
         nameCategories: row.name,
         color: row.color,
     };

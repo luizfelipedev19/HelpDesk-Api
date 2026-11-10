@@ -1,5 +1,5 @@
 import {pool} from '../config/db.config';
-import { CreateUserInput, User, UserRow, PublicUser, rowToUser } from '../model/user.model';
+import { UserRole, CreateUserInput, User, UserRow, PublicUser, rowToUser } from '../model/user.model';
 
 const COLUMNS = 'id_user, company_id, name, email, password_hash, role, active, created_at, updated_at';
 
@@ -17,15 +17,27 @@ export const userRepository = {
 
     async findById(id: string, companyId: string): Promise<User | null>{
         const {rows} = await pool.query<UserRow>(
-            `select name, email, role, active from users where id_user = $1 and company_id = $2`, [id, companyId],
+            `select ${COLUMNS} from users where id_user = $1 and company_id = $2`, [id, companyId],
         );
 
         return rows[0] ? rowToUser(rows[0]) : null;
     },
 
+    // Estado atual para o authenticate: valor do banco vale mais que o do token (role, ativo)
+    async findAuthState(id: string, companyId: string): Promise<{role: UserRole, active: boolean} | null> {
+        const {rows} = await pool.query<{role: UserRole, active: boolean}>(
+            `select u.role, (u.active and c.active) as active
+            from users u join companies c on c.id_company = u.company_id
+            where u.id_user = $1 and u.company_id = $2`,
+            [id, companyId],
+        );
+
+        return rows[0] ?? null;
+    },
+
     async findByEmail(email: string): Promise<User | null>{
         const {rows} = await pool.query<UserRow>(
-            `select ${COLUMNS} name, email, role, active from users where email = $1`, [email],
+            `select ${COLUMNS} from users where email = $1`, [email],
         );
 
         return rows[0] ? rowToUser(rows[0]) : null;

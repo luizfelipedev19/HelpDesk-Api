@@ -44,6 +44,19 @@ export const companyRepository = {
         }
     },
 
+    async updateName(id: string, name: string): Promise<PublicCompany | null> {
+        const {rows} = await pool.query<CompanyRow>(
+            `update companies set name = $2 where id_company = $1 returning ${COLUMNS}`,
+            [id, name],
+        );
+
+        return rows[0] ? rowToCompany(rows[0]) : null;
+    },
+
+    async deactivate(id: string): Promise<void> {
+        await pool.query(`update companies set active = false where id_company = $1`, [id]);
+    },
+
     async findById(id: string): Promise<PublicCompany | null> {
         const {rows} = await pool.query<CompanyRow>(
             `select ${COLUMNS} from companies where id_company = $1`,

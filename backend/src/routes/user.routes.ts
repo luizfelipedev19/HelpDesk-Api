@@ -4,11 +4,9 @@ import { authorize } from '../middleware/auth.middleware';
 
 export const usersRouter = Router();
 
-usersRouter.use(authorize('admin'));
-
-//rotas do usuário
-usersRouter.post('/', userController.createUser);
-usersRouter.get('/', userController.list);
-usersRouter.get('/:id', userController.getById);
-usersRouter.put('/desativar/:id', userController.desativarUser);
+//gestor consulta a equipe (para reatribuir tickets); criar e desativar é só do admin
+usersRouter.get('/', authorize('admin', 'gestor'), userController.list);
+usersRouter.get('/:id', authorize('admin', 'gestor'), userController.getById);
+usersRouter.post('/', authorize('admin'), userController.createUser);
+usersRouter.put('/desativar/:id', authorize('admin'), userController.desativarUser);
 

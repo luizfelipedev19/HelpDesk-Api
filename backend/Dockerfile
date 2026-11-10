@@ -7,4 +7,5 @@ RUN npm install
 
 COPY . . 
 
-CMD ["npm", "run", "dev"]
+# o init.sql não cria tudo (companies, cnpj...), então aplica as migrations antes de subir
+CMD ["sh", "-c", "npm run migrate && npm run dev"]

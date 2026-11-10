@@ -11,4 +11,10 @@ export const createCompanySchema = z.object({
 })
 .strict();
 
+export const updateCompanySchema = z.object({
+    companyName: z.string().trim().min(2).max(150),
+})
+.strict();
+
+export type UpdateCompanyBody = z.infer<typeof updateCompanySchema>;
 export type CreateCompanyBody = z.infer<typeof createCompanySchema>;

@@ -1,9 +1,10 @@
 import {Request, Response } from 'express';
+import { ticketIdParamsSchema } from "../schema/ticket.schema";
 import { ticketEventsService } from "../service/ticket.events.service";
 
 export const ticketEventsController = {
     async getEvents(req: Request, res: Response) {
-        const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+        const {id} = ticketIdParamsSchema.parse(req.params);
 
         const companyId = req.user!.companyId;
 

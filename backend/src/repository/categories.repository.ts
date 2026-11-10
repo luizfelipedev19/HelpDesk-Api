@@ -16,7 +16,7 @@ export const categoriesRepository = {
 
     async findById(id: string, companyId: string): Promise<Categories | null>{
         const {rows} = await pool.query<CategoriesRow>(
-            `select name, color from categories where id_categories = $1 and company_id = $2`,
+            `select ${COLUMNS} from categories where id_categories = $1 and company_id = $2`,
             [id, companyId],
         );
 
@@ -25,7 +25,7 @@ export const categoriesRepository = {
 
     async listCategories(companyId: string): Promise<Categories[]> {
         const {rows} = await pool.query<CategoriesRow>(
-            `select name, color from categories where company_id = $1`, 
+            `select ${COLUMNS} from categories where company_id = $1 order by name`,
             [companyId],
         );
 
@@ -41,7 +41,7 @@ export const categoriesRepository = {
             for (const [key, column] of Object.entries(allowd)) {
                 const value = data[key as keyof UpdateCategoryInput];
                 if(value !== undefined){
-                    values.push(values);
+                    values.push(value);
                     sets.push(`${column} = $${values.length}`);
                 }
             }
@@ -60,10 +60,11 @@ export const categoriesRepository = {
             return rows[0] ? rowToCategories(rows[0]) : null;
     },
 
-    async deleteCategories(id: string, companyId: string): Promise<void> {
-        const {rows} = await pool.query<CategoriesRow>(
-            `delete from categories where id_categories = $1 and company_id = $s2`,
+    async deleteCategories(id: string, companyId: string): Promise<boolean> {
+        const {rowCount} = await pool.query(
+            `delete from categories where id_categories = $1 and company_id = $2`,
             [id, companyId],
         );
+        return (rowCount ?? 0) > 0;
     },
 }

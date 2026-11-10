@@ -1,9 +1,8 @@
 import { Pool, PoolClient } from "pg";
 import {pool} from "../config/db.config";
-import { rowToCategories } from "../model/categories.model";
-import {CreateTicketInput, Ticket, TicketRow, PublicTicket, rowToTicket, UpdateTicketInput} from "../model/ticket.model";
+import {CreateTicketInput, Ticket, TicketRow, PublicTicket, rowToTicket, UpdateTicketInput, TicketStatus} from "../model/ticket.model";
 
-const COLUMNS = 'id_ticket, subject, description, status, priority, source, category_id, contact_name, contact_email, contact_phone, created_by, assigned_to, created_at, updated_at, closed_at';
+const COLUMNS = 'id_ticket, company_id, subject, description, status, priority, source, category_id, contact_name, contact_email, contact_phone, created_by, assigned_to, created_at, updated_at, closed_at';
 
 export const ticketRepository = {
     async createTicket(input: CreateTicketInput): Promise<Ticket>{
@@ -29,7 +28,8 @@ export const ticketRepository = {
     async findAll(companyId: string, limit: number, offset: number): Promise<Ticket[]> {
         const {rows} = await pool.query<TicketRow>(
             `select ${COLUMNS} from tickets
-            where company_id = $1 
+            where company_id = $1
+            order by created_at desc
             limit $2 offset $3`,
             [companyId, limit, offset],
         );
@@ -57,7 +57,16 @@ export const ticketRepository = {
             }
         }
         
-        if(sets.length === 0) return this.findById(id, companyId);
+        if(sets.length === 0) return this.findById(id, companyId, db);
+
+        sets.push('updated_at = now()');
+
+        // closed_at acompanha o ciclo de vida: preenche ao resolver/fechar e limpa ao reabrir
+        if(data.status !== undefined) {
+            sets.push(data.status === TicketStatus.Resolvido || data.status === TicketStatus.Fechado
+                ? 'closed_at = coalesce(closed_at, now())'
+                : 'closed_at = null');
+        }
 
         values.push(id, companyId);
         const {rows} = await db.query<TicketRow>(
@@ -71,16 +80,12 @@ export const ticketRepository = {
         return rows[0] ? rowToTicket(rows[0]) : null;
     },
 
-    async deleteTicket(id: string, companyId: string) {
-
-        //aqui eu digo que cada linha retornada do banco, é do tipo TicketRow
-
-        /**
-         * const {rows} = ... — destructuring. O pool.query retorna um objeto QueryResult<TicketRow> com várias         propriedades (rows, rowCount, fields, etc.). Você está puxando só rows (o array de linhas) direto do resultado.
-         */
-        const {rows} = await pool.query<TicketRow>(
-            `delete from tickets  where id_ticket = $1 and company_id = $2`,
+    async deleteTicket(id: string, companyId: string, db: Pool | PoolClient = pool): Promise<boolean> {
+        const {rowCount} = await db.query(
+            `delete from tickets where id_ticket = $1 and company_id = $2`,
             [id, companyId],
         );
+
+        return (rowCount ?? 0) > 0;
     },
 }
